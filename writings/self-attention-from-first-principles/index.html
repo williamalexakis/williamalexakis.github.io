@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Self-Attention, From First Principles</title>
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">
+<link rel="stylesheet" href="../../style.css">
+<script>(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}})()</script>
+</head>
+<body>
+
+<article class="writing">
+
+  <p class="home"><a href="../../">&larr; Home</a></p>
+
+  <h1 class="writing-title">Self-Attention, From First Principles</h1>
+  <p class="writing-date">11 June 2026</p>
+
+  <p>Large language models (LLMs) like ChatGPT, Claude, etc. have now cemented themselves in our everyday lives. But most people still don't know how LLMs work &mdash; mostly because of the lack of education about AI, plus companies are annoyingly focused on proprietary consumerism which hides even more about how this stuff works.</p>
+
+  <p>I won't focus much on AI literacy, but it's a big reason for this essay. People misusing AI by treating it like a glorified search engine, or thinking it's alive, both stem from the fact that many people just don't know this stuff. In reality, an LLM &mdash; at its core &mdash; is just maths, and specifically a concept called <em>attention</em>.</p>
+
+  <p>This concept of attention was introduced in Google's 2017 paper, <a href="https://arxiv.org/pdf/1706.03762">Attention Is All You Need</a>, and I'll go over how it works here &mdash; assuming you know some linear algebra but don't know how this specifically works.</p>
+
+  <h2>Deriving the Core Concept</h2>
+
+  <p>First, an LLM takes our prompt (the user message) and turns it into a series of <em>tokens</em>, which are individual words or components of words. For example, the string &ldquo;the river bank&rdquo; in a prompt is tokenized into &ldquo;the&rdquo;, &ldquo;river&rdquo;, and &ldquo;bank&rdquo; so each word is isolated and processed easily.</p>
+
+  <p>For each token processed, we look at every previous token (including itself) in the sequence and calculate how relevant each one is to our current token &mdash; then pull info from them based on their attention weights, letting us build associations between individual tokens. When we process the token &ldquo;bank&rdquo;, it's meaningless by itself, but the attention mechanism lets the model &mdash; which has already been trained on a bunch of language data &mdash; strongly associate it with the token &ldquo;river&rdquo;.</p>
+
+  <p>The transformer doesn't actually 'know' what those &ldquo;river&rdquo; or &ldquo;bank&rdquo; tokens mean because this is all just maths. Before attention, the input token embeddings \(\mathbf{X}\) are put through three learned linear projections:</p>
+
+  <div class="math-block">
+    \[
+    \mathbf{Q} = \mathbf{X} \mathbf{W}_Q \qquad
+    \mathbf{K} = \mathbf{X} \mathbf{W}_K \qquad
+    \mathbf{V} = \mathbf{X} \mathbf{W}_V
+    \]
+  </div>
+
+  <p>The weight matrices \(\mathbf{W}_Q\), \(\mathbf{W}_K\), and \(\mathbf{W}_V\) are what the model learns in pre-training, and we use them to create three vectors \(\mathbf{Q}\), \(\mathbf{K}\), and \(\mathbf{V}\) for each token. \(\mathbf{Q}\) is the token's query of what it's looking for, \(\mathbf{K}\) is the token's key of what it contains, and \(\mathbf{V}\) is the token's value of what it contributes to the output. These vectors are what actually lets statistical associations form &mdash; so knowing that, we can look at the attention formula itself:</p>
+
+  <div class="math-block">
+    \[
+    \text{Attention}(\mathbf{Q}, \mathbf{K}, \mathbf{V}) = \text{softmax}\left(\frac{\mathbf{Q}\mathbf{K}^\top}{\sqrt{d_k}}\right)\mathbf{V}
+    \]
+  </div>
+
+  <p>In the equation, we get an attention score by dotting \(\mathbf{Q}\) with the transposed key \(\mathbf{K}^\top\), then divide the score by \(\sqrt{d_k}\) (where \(d_k\) is the shared dimension of each \(\mathbf{Q}\) and \(\mathbf{K}\) vector), run it through \(\text{softmax}()\) to produce an attention weight \(W\), and multiply by \(\mathbf{V}\) to get our output. The dot product works as a relevance score because the dot product of two vectors actually has a geometric identity, where \(\theta\) is the angle between vectors \(\mathbf{q}\) and \(\mathbf{k}\):</p>
+
+  <div class="math-block">
+    \[
+    \mathbf{q} \cdot \mathbf{k} = |\mathbf{q}||\mathbf{k}|\cos\theta
+    \]
+  </div>
+
+  <p>Here, we're using directional alignment to denote how closely related two vectors are. So when \(\theta\) is small, \(\cos\theta\) approaches \(1\) with a large dot product, meaning the vectors are pointing in similar directions (related). But when \(\theta = 90^{\circ}\), then \(\cos\theta = 0\), meaning the vectors are perpendicular (unrelated). Basically the dot product measures how closely aligned two vectors are; a closer alignment means a larger dot product &mdash; and a larger dot product is a higher relevance score. In practice, here's what this looks like for a pair of \(2\)-dimensional vectors \(\mathbf{v}_1\) and \(\mathbf{v}_2\):</p>
+
+  <div class="math-block">
+    \[
+    \mathbf{v}_1 = \begin{pmatrix} 3 \\ 4 \end{pmatrix} \qquad
+    \mathbf{v}_2 = \begin{pmatrix} 4 \\ 3 \end{pmatrix}
+    \]
+  </div>
+
+  <p>We first compute magnitude:</p>
+
+  <div class="math-block">
+    \[
+    |\mathbf{v}_1| = |\mathbf{v}_2| = \sqrt{3^2 + 4^2} = 5
+    \]
+  </div>
+
+  <p>They both have the same magnitude of \(5\), which means the only difference is their direction. We then compute the dot product:</p>
+
+  <div class="math-block">
+    \[
+    \begin{aligned}
+    \mathbf{v}_1 \cdot \mathbf{v}_2 &amp;= (3 \times 4) + (4 \times 3) \\
+    &amp;= 12 + 12 \\
+    &amp;= 24
+    \end{aligned}
+    \]
+  </div>
+
+  <p>A dot product of \(24\) is large which means high relevance, and we can see this by calculating the angle \(\theta\) between the two vectors:</p>
+
+  <div class="math-block">
+    \[
+    \begin{aligned}
+    \theta &amp;= \cos^{-1}\left(\frac{\mathbf{v}_1 \cdot \mathbf{v}_2}{|\mathbf{v}_1||\mathbf{v}_2|}\right) \\
+    &amp;= \cos^{-1}\left(\frac{24}{5 \times 5}\right) \\
+    &amp;\approx 16.3^{\circ}
+    \end{aligned}
+    \]
+  </div>
+
+  <p>With this, we know that the vectors have close directional alignment, which is why they are relevant to each other. On a graph their relationship looks like this:</p>
+
+  <figure class="figure">
+    <svg viewBox="0 0 440 340" width="440" height="340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Graph showing vectors v1 and v2 with coordinate projections and the perpendicular drop of v2 onto v1; the angle between them is 16.3 degrees and their dot product is 24.">
+      <defs>
+        <marker id="vec-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+        </marker>
+        <marker id="axis-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <line x1="55" y1="290" x2="420" y2="290" stroke="currentColor" stroke-width="1" marker-end="url(#axis-arrow)"/>
+      <line x1="55" y1="290" x2="55" y2="25" stroke="currentColor" stroke-width="1" marker-end="url(#axis-arrow)"/>
+
+      <text x="425" y="295" font-family="'IBM Plex Serif', serif" font-style="italic" font-size="17" fill="currentColor">x</text>
+      <text x="48" y="22" font-family="'IBM Plex Serif', serif" font-style="italic" font-size="17" fill="currentColor">y</text>
+
+      <line x1="205" y1="287" x2="205" y2="293" stroke="currentColor" stroke-width="1"/>
+      <line x1="255" y1="287" x2="255" y2="293" stroke="currentColor" stroke-width="1"/>
+      <line x1="52" y1="90" x2="58" y2="90" stroke="currentColor" stroke-width="1"/>
+      <line x1="52" y1="140" x2="58" y2="140" stroke="currentColor" stroke-width="1"/>
+
+      <text x="205" y="310" text-anchor="middle" font-family="'IBM Plex Serif', serif" font-size="13" fill="currentColor">3</text>
+      <text x="255" y="310" text-anchor="middle" font-family="'IBM Plex Serif', serif" font-size="13" fill="currentColor">4</text>
+      <text x="45" y="95" text-anchor="end" font-family="'IBM Plex Serif', serif" font-size="13" fill="currentColor">4</text>
+      <text x="45" y="145" text-anchor="end" font-family="'IBM Plex Serif', serif" font-size="13" fill="currentColor">3</text>
+
+      <line x1="205" y1="90" x2="205" y2="290" stroke="currentColor" stroke-width="0.9" stroke-dasharray="1 4" stroke-linecap="round" opacity="0.5"/>
+      <line x1="205" y1="90" x2="55" y2="90" stroke="currentColor" stroke-width="0.9" stroke-dasharray="1 4" stroke-linecap="round" opacity="0.5"/>
+      <line x1="255" y1="140" x2="255" y2="290" stroke="currentColor" stroke-width="0.9" stroke-dasharray="1 4" stroke-linecap="round" opacity="0.5"/>
+      <line x1="255" y1="140" x2="55" y2="140" stroke="currentColor" stroke-width="0.9" stroke-dasharray="1 4" stroke-linecap="round" opacity="0.5"/>
+
+      <line x1="255" y1="140" x2="199" y2="98" stroke="currentColor" stroke-width="1.5" stroke-dasharray="6 2"/>
+      <path d="M 193 106 L 201 112 L 207 104" fill="none" stroke="currentColor" stroke-width="1.5"/>
+
+      <line x1="227" y1="119" x2="304" y2="80" stroke="currentColor" stroke-width="0.7" opacity="0.55"/>
+      <text x="309" y="84" font-family="'IBM Plex Serif', serif" font-size="15" fill="currentColor"><tspan font-weight="700">v</tspan><tspan font-size="11" font-weight="400" dy="3">1</tspan><tspan dy="-3"> &#x22C5; </tspan><tspan font-weight="700">v</tspan><tspan font-size="11" font-weight="400" dy="3">2</tspan><tspan dy="-3"> = 24</tspan></text>
+
+      <line x1="55" y1="290" x2="205" y2="90" stroke="currentColor" stroke-width="1.6" marker-end="url(#vec-arrow)"/>
+      <line x1="55" y1="290" x2="255" y2="140" stroke="currentColor" stroke-width="1.6" marker-end="url(#vec-arrow)"/>
+
+      <path d="M 91 263 A 45 45 0 0 0 82 256" fill="none" stroke="currentColor" stroke-width="1"/>
+
+      <text x="212" y="82" font-family="'IBM Plex Serif', serif" font-weight="700" font-size="19" fill="currentColor">v<tspan font-size="13" dy="4" font-weight="400">1</tspan></text>
+      <text x="262" y="138" font-family="'IBM Plex Serif', serif" font-weight="700" font-size="19" fill="currentColor">v<tspan font-size="13" dy="4" font-weight="400">2</tspan></text>
+      <text x="100" y="270" font-family="'IBM Plex Serif', serif" font-size="14" fill="currentColor">16.3&#xB0;</text>
+    </svg>
+  </figure>
+
+  <p>But now here's what the process looks like for two <em>unrelated</em> vectors \(\mathbf{v}_3\) and \(\mathbf{v}_4\) which also have an equal magnitude of \(5\):</p>
+
+  <div class="math-block">
+    \[
+    \mathbf{v}_3 = \begin{pmatrix} 3 \\ 4 \end{pmatrix} \qquad
+    \mathbf{v}_4 = \begin{pmatrix} 4 \\ -3 \end{pmatrix}
+    \]
+  </div>
+
+  <div class="math-block">
+    \[
+    \begin{aligned}
+    \mathbf{v}_3 \cdot \mathbf{v}_4 &amp;= (3 \times 4) + (4 \times -3) \\
+    &amp;= 12 + (-12) \\
+    &amp;= 0
+    \end{aligned}
+    \]
+  </div>
+
+  <div class="math-block">
+    \[
+    \begin{aligned}
+    \theta &amp;= \cos^{-1}\left(\frac{\mathbf{v}_3 \cdot \mathbf{v}_4}{|\mathbf{v}_3||\mathbf{v}_4|}\right) \\
+    &amp;= \cos^{-1}\left(\frac{0}{5 \times 5}\right) \\
+    &amp;= 90^{\circ}
+    \end{aligned}
+    \]
+  </div>
+
+  <p>With a dot product of \(0\) and an angle of \(90^{\circ}\), our vectors are orthogonal &mdash; meaning they're perpendicular and unrelated to each other:</p>
+
+  <figure class="figure">
+    <svg viewBox="0 0 440 340" width="440" height="340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Graph showing perpendicular vectors v3 and v4 with a right angle at the origin.">
+      <defs>
+        <marker id="vec-arrow-2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+        </marker>
+        <marker id="axis-arrow-2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <line x1="60" y1="170" x2="420" y2="170" stroke="currentColor" stroke-width="1" marker-end="url(#axis-arrow-2)"/>
+      <line x1="60" y1="315" x2="60" y2="25" stroke="currentColor" stroke-width="1" marker-end="url(#axis-arrow-2)"/>
+
+      <text x="425" y="175" font-family="'IBM Plex Serif', serif" font-style="italic" font-size="17" fill="currentColor">x</text>
+      <text x="52" y="22" font-family="'IBM Plex Serif', serif" font-style="italic" font-size="17" fill="currentColor">y</text>
+
+      <line x1="165" y1="167" x2="165" y2="173" stroke="currentColor" stroke-width="1"/>
+      <line x1="200" y1="167" x2="200" y2="173" stroke="currentColor" stroke-width="1"/>
+      <line x1="57" y1="30" x2="63" y2="30" stroke="currentColor" stroke-width="1"/>
+      <line x1="57" y1="275" x2="63" y2="275" stroke="currentColor" stroke-width="1"/>
+
+      <text x="165" y="188" text-anchor="middle" font-family="'IBM Plex Serif', serif" font-size="13" fill="currentColor">3</text>
+      <text x="200" y="188" text-anchor="middle" font-family="'IBM Plex Serif', serif" font-size="13" fill="currentColor">4</text>
+      <text x="50" y="35" text-anchor="end" font-family="'IBM Plex Serif', serif" font-size="13" fill="currentColor">4</text>
+      <text x="50" y="280" text-anchor="end" font-family="'IBM Plex Serif', serif" font-size="13" fill="currentColor">&#x2212;3</text>
+
+      <line x1="165" y1="30" x2="165" y2="170" stroke="currentColor" stroke-width="0.9" stroke-dasharray="1 4" stroke-linecap="round" opacity="0.5"/>
+      <line x1="165" y1="30" x2="60" y2="30" stroke="currentColor" stroke-width="0.9" stroke-dasharray="1 4" stroke-linecap="round" opacity="0.5"/>
+      <line x1="200" y1="275" x2="200" y2="170" stroke="currentColor" stroke-width="0.9" stroke-dasharray="1 4" stroke-linecap="round" opacity="0.5"/>
+      <line x1="200" y1="275" x2="60" y2="275" stroke="currentColor" stroke-width="0.9" stroke-dasharray="1 4" stroke-linecap="round" opacity="0.5"/>
+
+      <line x1="60" y1="170" x2="165" y2="30" stroke="currentColor" stroke-width="1.6" marker-end="url(#vec-arrow-2)"/>
+      <line x1="60" y1="170" x2="200" y2="275" stroke="currentColor" stroke-width="1.6" marker-end="url(#vec-arrow-2)"/>
+
+      <path d="M 68 159 L 80 167 L 71 178" fill="none" stroke="currentColor" stroke-width="1.5"/>
+
+      <text x="172" y="25" font-family="'IBM Plex Serif', serif" font-weight="700" font-size="19" fill="currentColor">v<tspan font-size="13" dy="4" font-weight="400">3</tspan></text>
+      <text x="207" y="285" font-family="'IBM Plex Serif', serif" font-weight="700" font-size="19" fill="currentColor">v<tspan font-size="13" dy="4" font-weight="400">4</tspan></text>
+
+      <text x="92" y="160" font-family="'IBM Plex Serif', serif" font-size="14" fill="currentColor">90&#xB0;</text>
+    </svg>
+  </figure>
+
+  <p>Now, the actual reason that directional alignment means relevance is because \(\mathbf{W}_Q\) projects each token's embedding into a \(d_k\)-dimensional space where the direction of the vector means the query of &ldquo;what I'm looking for&rdquo;. Meanwhile \(\mathbf{W}_K\) projects into the same space where the direction means the key of &ldquo;what I contain&rdquo;. So you see that the model trained these weight matrices to make tokens that should correlate end up pointing in similar directions in that shared space &mdash; where, for example, \(\mathbf{q}_{\text{bank}}\) in our example sentence points roughly where \(\mathbf{k}_{\text{river}}\) also points to. Through training, the model already learns these alignments between tokens, but we use the dot product during inference to actually measure those alignments.</p>
+
+  <p>Moving on, \(\text{softmax}()\) is an important function because it emphasizes differences between raw attention scores through exponentiation, normalizes to \(1\), and leaves us with a probability distribution of attention weights:</p>
+
+  <div class="math-block">
+    \[
+    \text{softmax}(z_i) = \frac{e^{z_i}}{\sum_{j=1}^{n} e^{z_j}}
+    \]
+  </div>
+
+  <p>Another very important thing is dividing the score by \(\sqrt{d_k}\) to normalize before \(\text{softmax}()\) because the raw attention score is the dot product \(\mathbf{q} \cdot \mathbf{k}\). After initialization, the \(d_k\) components of each query vector \(\mathbf{q}\) and key vector \(\mathbf{k}\) are roughly independent with \(\text{mean} = 0\) and \(\text{variance} \approx 1\). And since the components are independent, then \(\text{variance}(\mathbf{q}\cdot\mathbf{k}) = \sum_i \text{variance}(q_i k_i)\) , which just equals \(d_k\), so the score's typical magnitude is \(\sqrt{d_k}\). This means that by around \(d_k \ge 25\), the score grows so large that it saturates \(\text{softmax}()\) and kills the probability gradient, leaving us with only one dominant value while everything else is negligible.</p>
+
+  <p>Back to our example then &mdash; what actually happens is query \(\mathbf{q}_{\text{bank}}\) is dotted with keys \(\mathbf{k}_{\text{the}}\), \(\mathbf{k}_{\text{river}}\), and \(\mathbf{k}_{\text{bank}}\) to produce three attention scores. These are run through \(\text{softmax}()\) to produce a distribution of positive attention weights that sum to \(1\), where &ldquo;river&rdquo; is the largest value &mdash; so it's the heaviest weight. Then, our output \(\mathbf{o}_{\text{bank}}\) is a weighted sum of all values, where the \(w\)'s are the \(\text{softmax}()\) weights:</p>
+
+  <div class="math-block">
+    \[
+    \mathbf{o}_{\text{bank}} = w_\text{the} \cdot \mathbf{v}_{\text{the}} + w_\text{river} \cdot \mathbf{v}_{\text{river}} + w_\text{bank} \cdot \mathbf{v}_{\text{bank}}
+    \]
+  </div>
+
+  <p>Token &ldquo;river&rdquo; dominates here because its weight is much larger which dilutes the other weights, and the output we generate is a point in embedding space that's been dragged closer to \(\mathbf{v}_{\text{river}}\) by the weight distribution. That's why there's no discrete selection here like 'choosing' a token; attention is a dynamic mechanism, and whichever vector has dominant weight just pulls the output closer to itself.</p>
+
+  <p>For example, using \(2\)-dimensional vectors to keep things simple, this is what the process looks like where we have token values:</p>
+
+  <div class="math-block">
+    \[
+    \mathbf{v}_{\text{the}} = \begin{pmatrix} 0 \\ 1 \end{pmatrix} \qquad
+    \mathbf{v}_{\text{river}} = \begin{pmatrix} 4 \\ 3 \end{pmatrix} \qquad
+    \mathbf{v}_{\text{bank}} = \begin{pmatrix} 1 \\ 1 \end{pmatrix}
+    \]
+  </div>
+
+  <p>And we have \(\text{softmax}()\) attention weights:</p>
+
+  <div class="math-block">
+    \[
+    w_{\text{the}} = 0.05 \qquad
+    w_{\text{river}} = 0.90 \qquad
+    w_{\text{bank}} = 0.05
+    \]
+  </div>
+
+  <p>We multiply all of this stuff and sum it up:</p>
+
+  <div class="math-block">
+    \[
+    \begin{aligned}
+    \mathbf{o}_{\text{bank}} &amp;= 0.05\begin{pmatrix} 0 \\ 1 \end{pmatrix} + 0.90\begin{pmatrix} 4 \\ 3 \end{pmatrix} + 0.05\begin{pmatrix} 1 \\ 1 \end{pmatrix} \\
+    &amp;= \begin{pmatrix} 0 \\ 0.05 \end{pmatrix} + \begin{pmatrix} 3.6 \\ 2.7 \end{pmatrix} + \begin{pmatrix} 0.05 \\ 0.05 \end{pmatrix} \\
+    &amp;= \begin{pmatrix} 3.65 \\ 2.8 \end{pmatrix}
+    \end{aligned}
+    \]
+  </div>
+
+  <p>So you see how \(\mathbf{o}_{\text{bank}}\) aligns closely with \(\mathbf{v}_{\text{river}}\) but it's not exactly equal, because it's a weighted sum of all values including \(\mathbf{v}_{\text{the}}\) and \(\mathbf{v}_{\text{bank}}\). It's easier to see on a graph how our output is dragged towards the heaviest weighted value &mdash; but keep in mind that while this is \(2\)-dimensional, real value vectors exist in much higher \(d_k\)-dimensional spaces:</p>
+
+  <figure class="figure">
+    <svg viewBox="0 0 440 340" width="440" height="340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Graph showing value vectors v_the, v_river, and v_bank with the shaded convex hull triangle and the output vector o_bank inside, pulled toward v_river.">
+      <defs>
+        <marker id="vec-arrow-3" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+        </marker>
+        <marker id="axis-arrow-3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <line x1="55" y1="290" x2="420" y2="290" stroke="currentColor" stroke-width="1" marker-end="url(#axis-arrow-3)"/>
+      <line x1="55" y1="290" x2="55" y2="25" stroke="currentColor" stroke-width="1" marker-end="url(#axis-arrow-3)"/>
+
+      <text x="425" y="295" font-family="'IBM Plex Serif', serif" font-style="italic" font-size="17" fill="currentColor">x</text>
+      <text x="48" y="22" font-family="'IBM Plex Serif', serif" font-style="italic" font-size="17" fill="currentColor">y</text>
+
+      <line x1="55" y1="287" x2="55" y2="293" stroke="currentColor" stroke-width="1"/>
+      <line x1="115" y1="287" x2="115" y2="293" stroke="currentColor" stroke-width="1"/>
+      <line x1="274" y1="287" x2="274" y2="293" stroke="currentColor" stroke-width="1"/>
+      <line x1="295" y1="287" x2="295" y2="293" stroke="currentColor" stroke-width="1"/>
+      <line x1="52" y1="230" x2="58" y2="230" stroke="currentColor" stroke-width="1"/>
+      <line x1="52" y1="122" x2="58" y2="122" stroke="currentColor" stroke-width="1"/>
+      <line x1="52" y1="110" x2="58" y2="110" stroke="currentColor" stroke-width="1"/>
+
+      <text x="55" y="310" text-anchor="middle" font-family="'IBM Plex Serif', serif" font-size="13" fill="currentColor">0</text>
+      <text x="115" y="310" text-anchor="middle" font-family="'IBM Plex Serif', serif" font-size="13" fill="currentColor">1</text>
+      <text x="274" y="312" text-anchor="middle" font-family="'IBM Plex Serif', serif" font-weight="700" font-size="14" fill="currentColor">3.65</text>
+      <text x="297" y="310" text-anchor="start" font-family="'IBM Plex Serif', serif" font-size="13" fill="currentColor">4</text>
+      <text x="45" y="235" text-anchor="end" font-family="'IBM Plex Serif', serif" font-size="13" fill="currentColor">1</text>
+      <text x="45" y="128" text-anchor="end" font-family="'IBM Plex Serif', serif" font-weight="700" font-size="14" fill="currentColor">2.8</text>
+      <text x="45" y="110" text-anchor="end" font-family="'IBM Plex Serif', serif" font-size="13" fill="currentColor">3</text>
+
+      <polygon points="55,230 295,110 115,230" fill="currentColor" fill-opacity="0.08" stroke="currentColor" stroke-width="1" stroke-dasharray="5 3"/>
+
+      <line x1="274" y1="122" x2="274" y2="290" stroke="currentColor" stroke-width="0.9" stroke-dasharray="1 4" stroke-linecap="round" opacity="0.5"/>
+      <line x1="274" y1="122" x2="55" y2="122" stroke="currentColor" stroke-width="0.9" stroke-dasharray="1 4" stroke-linecap="round" opacity="0.5"/>
+      <line x1="295" y1="110" x2="295" y2="290" stroke="currentColor" stroke-width="0.9" stroke-dasharray="1 4" stroke-linecap="round" opacity="0.5"/>
+      <line x1="295" y1="110" x2="55" y2="110" stroke="currentColor" stroke-width="0.9" stroke-dasharray="1 4" stroke-linecap="round" opacity="0.5"/>
+      <line x1="115" y1="230" x2="115" y2="290" stroke="currentColor" stroke-width="0.9" stroke-dasharray="1 4" stroke-linecap="round" opacity="0.5"/>
+
+      <line x1="55" y1="290" x2="55" y2="234" stroke="currentColor" stroke-width="1.6" marker-end="url(#vec-arrow-3)"/>
+      <line x1="55" y1="290" x2="293" y2="111" stroke="currentColor" stroke-width="1.6" marker-end="url(#vec-arrow-3)"/>
+      <line x1="55" y1="290" x2="113" y2="232" stroke="currentColor" stroke-width="1.6" marker-end="url(#vec-arrow-3)"/>
+
+      <circle cx="274" cy="122" r="4" fill="currentColor"/>
+
+      <text x="62" y="220" font-family="'IBM Plex Serif', serif" font-weight="700" font-size="17" fill="currentColor">v<tspan font-size="11" dy="4" font-weight="400">the</tspan></text>
+      <text x="302" y="108" font-family="'IBM Plex Serif', serif" font-weight="700" font-size="17" fill="currentColor">v<tspan font-size="11" dy="4" font-weight="400">river</tspan></text>
+      <text x="105" y="220" font-family="'IBM Plex Serif', serif" font-weight="700" font-size="17" fill="currentColor">v<tspan font-size="11" dy="4" font-weight="400">bank</tspan></text>
+
+      <line x1="270" y1="120" x2="225" y2="88" stroke="currentColor" stroke-width="0.7" opacity="0.55"/>
+      <text x="220" y="82" text-anchor="end" font-family="'IBM Plex Serif', serif" font-weight="700" font-size="17" fill="currentColor">o<tspan font-size="11" dy="4" font-weight="400">bank</tspan></text>
+    </svg>
+  </figure>
+
+  <p>And with that, we've gone all the way from &ldquo;the river bank&rdquo; &mdash; where &ldquo;river&rdquo; and &ldquo;bank&rdquo; have nothing to do with each other by themselves &mdash; to proving exactly how &ldquo;bank&rdquo; is related to &ldquo;river&rdquo; with the maths behind <em>self-attention</em>. Now this is just one part of LLMs overall, but it's the one system that I'd say is actually worth taking your time to understand.</p>
+
+  <h2>Closing Thoughts</h2>
+
+  <p>I think it's really important to demistify widespread technology like this because it lets us know exactly what this type of product <em>can do</em>, past the brands and marketing. Now obviously not everyone needs to be forcefed self-attention derivations, but some abstract teaching would still be useful I'd say. Again, the point of tech literacy is to prevent stuff like bosses replacing employees with agents and students depending on AI &mdash; all just from not knowing what LLMs really are.</p>
+
+  <p>Anyways, I also wanna mention that another reason for writing this essay is for <em>me</em> to learn about attention. It's a sort of trial-by-fire learning method, where by having to explain the concept in my own words then I have to internalize it as well &mdash; for example, every word or concept I wrote that I didn't fully understand, I researched it and wrote in the explanation itself for the <em>how</em> and <em>why</em> of something.</p>
+
+  <p>So apart from AI literacy, another takeaway would be that if you really want to learn something, don't just read a bunch of boring papers but try to teach it in your own words until you learn it yourself, and then you end up with both learning something new and hard proof you know it as well.</p>
+
+  <p class="source"><a href="https://github.com/williamalexakis/self-attention.c">github.com/williamalexakis/self-attention.c</a></p>
+
+</article>
+
+<button class="theme-toggle" type="button" aria-label="Switch between light and dark theme">
+  <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14">
+    <path class="icon-sun" d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8 0v2M8 14v2M0 8h2M14 8h2M2.3 2.3l1.4 1.4M12.3 12.3l1.4 1.4M13.7 2.3l-1.4 1.4M3.7 12.3l-1.4 1.4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+    <path class="icon-moon" d="M13.5 9.7A6 6 0 0 1 6.3 2.5 6 6 0 1 0 13.5 9.7z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+  </svg>
+</button>
+
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/contrib/auto-render.min.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  renderMathInElement(document.body, {
+    delimiters: [
+      { left: "\\[", right: "\\]", display: true },
+      { left: "\\(", right: "\\)", display: false }
+    ],
+    throwOnError: false
+  })
+})
+
+document.querySelector(".theme-toggle").addEventListener("click", function () {
+  var root = document.documentElement
+  var explicit = root.getAttribute("data-theme")
+  var isDark = explicit ? explicit === "dark"
+                        : matchMedia("(prefers-color-scheme: dark)").matches
+  var next = isDark ? "light" : "dark"
+  root.setAttribute("data-theme", next)
+  try { localStorage.setItem("theme", next) } catch (e) {}
+})
+</script>
+
+</body>
+</html>

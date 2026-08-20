@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chunk-Based File Reading in C</title>
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">
+<link rel="stylesheet" href="../../style.css">
+<script>(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}})()</script>
+</head>
+<body>
+
+<article class="writing">
+
+  <p class="home"><a href="../../">&larr; Home</a></p>
+
+  <h1 class="writing-title">Chunk-Based File Reading in C</h1>
+  <p class="writing-date">4 June 2026</p>
+
+  <p>The biggest fix I wrote in Phase <a href="https://github.com/williamalexakis/phase/releases/tag/v1.1.0">v1.1.0</a> was replacing the old <code>fseek()</code> / <code>ftell()</code> file reading system with a much safer chunk-based mechanism only using <code>fread()</code>. This issue was brought up by <a href="https://github.com/skeeto">Christopher Wellons</a> whose code review inspired the release, but I want to look closer at this system because it's useful in general.</p>
+
+  <p>For both implementations, the goal was the same &mdash; to read a <code>.phase</code> file into a C string called <code>file_content</code> &mdash; so I'll start with the old code here:</p>
+
+<pre><code class="language-c">// phase/src/main.c
+
+// We first add our file to a pointer, and
+// check for a file not found error
+FILE *input_file = fopen(argv[1], "r");
+if (!input_file) error_ifnf(argv[1]);
+
+// Move the file pointer to the end of the
+// file, using fseek(), before we use
+// ftell() to get the exact size
+fseek(input_file, 0, SEEK_END);
+size_t file_size = (size_t)ftell(input_file);
+// Rewind the pointer back to the start
+rewind(input_file);
+
+// Then we allocate the necessary memory to
+// our string pointer, plus 1 for a null
+// terminator at the end
+char *file_content = malloc(file_size + 1);
+// Raise an out of memory error if
+// file_content is NULL
+if (!file_content) {
+    fclose(input_file);
+    error_oom();
+}
+
+// Finally, we use fread() to insert the file
+// content into the string, null-terminate,
+// and close the file
+fread(file_content, sizeof(char), file_size, input_file);
+file_content[file_size] = '\0';
+fclose(input_file);</code></pre>
+
+  <p>This old code is basically the standard way of reading files into C strings, and it worked fine because I only tested sane cases instead of extreme edge cases like Wellons did.</p>
+
+  <p>The main bug is that if a file is unseekable (e.g., passed via pipe, socket, etc.) then <code>ftell()</code> returns <code>-1L</code>, a <code>long</code> integer, to represent an error. But our typecast of <code>size_t</code> is an <code>unsigned</code> type (<code>unsigned long</code> on LP64 macOS) &mdash; so we have to convert the negative <code>signed</code> value to a positive <code>unsigned</code> value. This is done using a standard formula for conversion, assuming \(u\) is the <code>unsigned</code> value, \(s\) is the <code>signed</code> value, \(w\) is the bit width of the <code>unsigned</code> type, and \(\mathrm{max}\) is the maximum value of the <code>unsigned</code> type (in this case, <code>SIZE_MAX</code>):</p>
+
+  <div class="math-block">
+    \[
+    u = s \mod 2^w \qquad
+    w = \log_2(\mathrm{max} + 1)
+    \]
+  </div>
+
+  <p>With this, converting <code>-1L</code> gives us <code>SIZE_MAX</code>. And since we <code>malloc()</code> by <code>file_size + 1</code> then an integer overflow occurs and we allocate 0 bytes &mdash; returning a non-<code>NULL</code> pointer that silently evades the <code>!file_content</code> check. And with this check passed, we then get a buffer overflow when calling <code>fread()</code>, plus a second buffer overflow when we add the null terminator.</p>
+
+  <p>The fix I implemented is a chunk-based reader which doesn't use <code>fseek()</code> / <code>ftell()</code> at all. The premise is that we dynamically reallocate the string's memory based on <code>fread()</code> returning full chunks, which tells us there is still more content to read so we should continue. Specifically, I set <code>size=1</code> and <code>nmemb=CHUNK_SIZE</code> for <code>fread()</code>, which returns the exact byte count even on partial reads; if I had done the opposite, a partial final chunk would return 0 (for zero fulfilled elements) so I'd lose the exact byte count:</p>
+
+<pre><code class="language-c">// phase/src/main.c
+
+// (*input_file and error_ifnf lines stay the same)
+
+// Each chunk is a constant 4096 bytes
+const size_t CHUNK_SIZE = 4096;
+size_t file_len = 0;
+size_t file_cap = CHUNK_SIZE;  // Set to one chunk
+
+// We do an initial allocation to start off with
+// some space already there, plus we check for
+// an OOM error now so things don't get
+// messy later
+char *file_content = malloc(file_cap);
+if (!file_content) {
+    fclose(input_file);
+    error_oom();
+}
+
+// Read the source file in CHUNK_SIZE byte segments
+// to handle potentially any unseekable inputs
+while (true) {
+    // Double cap for extra memory space
+    if ((file_len + CHUNK_SIZE) &gt; file_cap) {
+        size_t new_cap = file_cap * 2;
+        // Sanitize our reallocation using a
+        // temporary pointer to check for
+        // validity, BEFORE we touch the
+        // content string
+        char *temp_ptr = realloc(file_content, new_cap);
+        if (!temp_ptr) {
+            free(file_content);
+            fclose(input_file);
+            error_oom();
+        }
+
+        file_content = temp_ptr;  // Update our memory
+        file_cap = new_cap;       // Update our capacity
+    }
+    // Read up to CHUNK_SIZE bytes (size=1 * nmemb=CHUNK_SIZE)
+    // and return the exact number of bytes read
+    size_t num_bytes = fread(file_content + file_len,
+                             1, CHUNK_SIZE, input_file);
+    file_len += num_bytes;  // Increase our length counter
+                            // by the bytes read
+
+    // If the bytes read is LESS than the expected
+    // constant, we stop because either we've hit
+    // EOF or an error happened
+    if (num_bytes &lt; CHUNK_SIZE) break;
+}
+
+// Nonzero return from ferror() tells us it's
+// an actual error instead of just the EOF
+if (ferror(input_file) != 0) {
+    free(file_content);
+    fclose(input_file);
+    error_io(argv[1]);
+}
+
+// We sanitize our reallocation again, this
+// time for the extra null terminator byte
+char *temp_ptr = realloc(file_content, file_len + 1);
+if (!temp_ptr) {
+    free(file_content);
+    fclose(input_file);
+    error_oom();
+}
+
+// And finally we update file_content's memory,
+// terminate, and close the file like usual
+file_content = temp_ptr;
+file_content[file_len] = '\0';
+fclose(input_file);</code></pre>
+
+  <p>With this new implementation, we can now safely pass in source files in any way we want, and there are no overflows, memory leakage, or undefined behaviour.</p>
+
+  <p>It took me some thinking to figure out how I can use <code>fread()</code> to inject a file into a string without knowing its size already, and that's always annoyed me with how weird files in C are, but solving this issue made everything much clearer. Mainly it taught me to never use <code>ftell()</code> to size a buffer, and instead take the safer route of dynamically growing one using <code>fread()</code>'s return value.</p>
+
+  <p>And this piece of code isn't really specific to my project, so you could use it in your own projects too &mdash; it's really useful and it'll save you from future headaches.</p>
+
+  <p class="source"><a href="https://github.com/williamalexakis/phase/blob/main/src/main.c">phase/src/main.c</a></p>
+
+</article>
+
+<button class="theme-toggle" type="button" aria-label="Switch between light and dark theme">
+  <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14">
+    <path class="icon-sun" d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8 0v2M8 14v2M0 8h2M14 8h2M2.3 2.3l1.4 1.4M12.3 12.3l1.4 1.4M13.7 2.3l-1.4 1.4M3.7 12.3l-1.4 1.4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+    <path class="icon-moon" d="M13.5 9.7A6 6 0 0 1 6.3 2.5 6 6 0 1 0 13.5 9.7z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+  </svg>
+</button>
+
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/contrib/auto-render.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-core.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-clike.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-c.min.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  renderMathInElement(document.body, {
+    delimiters: [
+      { left: "\\[", right: "\\]", display: true },
+      { left: "\\(", right: "\\)", display: false }
+    ],
+    throwOnError: false
+  })
+})
+
+document.querySelector(".theme-toggle").addEventListener("click", function () {
+  var root = document.documentElement
+  var explicit = root.getAttribute("data-theme")
+  var isDark = explicit ? explicit === "dark"
+                        : matchMedia("(prefers-color-scheme: dark)").matches
+  var next = isDark ? "light" : "dark"
+  root.setAttribute("data-theme", next)
+  try { localStorage.setItem("theme", next) } catch (e) {}
+})
+</script>
+
+</body>
+</html>

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>William Alexakis</title>
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+<link rel="stylesheet" href="style.css">
+<script>(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}})()</script>
+</head>
+<body>
+
+<main class="page">
+
+  <div class="masthead">
+    <span class="wordmark">William Alexakis</span>
+    <nav class="social">
+      <a href="mailto:w.alexakis@icloud.com">Email</a>
+      <a href="https://github.com/williamalexakis">GitHub</a>
+      <a href="https://www.linkedin.com/in/williamalexakis">LinkedIn</a>
+    </nav>
+  </div>
+
+  <!-- Drop cv.pdf next to this file and this link starts working. -->
+  <section class="section">
+    <ul class="entries">
+      <li><a href="cv.pdf">CV</a></li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">Projects</h2>
+    <ul class="entries">
+      <li><a href="https://github.com/williamalexakis/phase">phase</a></li>
+      <li><a href="https://github.com/williamalexakis/self-attention.c">self-attention.c</a></li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">Writings</h2>
+    <ul class="entries">
+      <li><span class="date">Aug 2026</span><a href="writings/memento-vivere/">Memento Vivere</a></li>
+      <li><span class="date">Jun 2026</span><a href="writings/self-attention-from-first-principles/">Self-Attention, From First Principles</a></li>
+      <li><span class="date">Jun 2026</span><a href="writings/chunk-based-file-reading-in-c/">Chunk-Based File Reading in C</a></li>
+      <li><span class="date">Dec 2025</span><a href="writings/bytecode-interpretation-from-scratch-in-c/">Bytecode Interpretation From Scratch in C</a></li>
+    </ul>
+  </section>
+
+</main>
+
+<button class="theme-toggle" type="button" aria-label="Switch between light and dark theme">
+  <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14">
+    <path class="icon-sun" d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8 0v2M8 14v2M0 8h2M14 8h2M2.3 2.3l1.4 1.4M12.3 12.3l1.4 1.4M13.7 2.3l-1.4 1.4M3.7 12.3l-1.4 1.4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+    <path class="icon-moon" d="M13.5 9.7A6 6 0 0 1 6.3 2.5 6 6 0 1 0 13.5 9.7z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+  </svg>
+</button>
+
+<script>
+document.querySelector(".theme-toggle").addEventListener("click", function () {
+  var root = document.documentElement
+  var explicit = root.getAttribute("data-theme")
+  var isDark = explicit ? explicit === "dark"
+                        : matchMedia("(prefers-color-scheme: dark)").matches
+  var next = isDark ? "light" : "dark"
+  root.setAttribute("data-theme", next)
+  try { localStorage.setItem("theme", next) } catch (e) {}
+})
+</script>
+
+</body>
+</html>

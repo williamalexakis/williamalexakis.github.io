@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memento Vivere</title>
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+<link rel="stylesheet" href="../../style.css">
+<script>(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}})()</script>
+</head>
+<body>
+
+<article class="writing">
+
+  <p class="home"><a href="../../">&larr; Home</a></p>
+
+  <h1 class="writing-title">Memento Vivere</h1>
+  <p class="writing-date">18 August 2026</p>
+
+  <p>I haven't seen enough talk about work-life balance when you're young. To me, if you spend your entire youth working then you've fallen into the same trap as someone who isn't productive at all &mdash; as in, you're collapsing your whole self into one specific thing. This sort of constricts your identity and makes it harder to escape your domain, because other activities feel either too unproductive or too intensive.</p>
+
+  <p>And the main problem is that this identity will inevitably break down at some point in the future like university or later, and you'll be stuck with both adult responsibilities <em>and</em> figuring out yourself. Basically, you should be able to ask yourself &ldquo;who are you without your career?&rdquo; and be the exact same person as before.</p>
+
+  <p>Taking a big step back and looking at things from a distance helps with this isolation. Charlie Chaplin was right when he said that &ldquo;life is a tragedy in close-up, but a comedy in long-shot&rdquo;.</p>
+
+  <p>The takeaway is that you shouldn't take things so seriously, and you should always remember to live.</p>
+
+</article>
+
+<button class="theme-toggle" type="button" aria-label="Switch between light and dark theme">
+  <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14">
+    <path class="icon-sun" d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8 0v2M8 14v2M0 8h2M14 8h2M2.3 2.3l1.4 1.4M12.3 12.3l1.4 1.4M13.7 2.3l-1.4 1.4M3.7 12.3l-1.4 1.4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+    <path class="icon-moon" d="M13.5 9.7A6 6 0 0 1 6.3 2.5 6 6 0 1 0 13.5 9.7z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+  </svg>
+</button>
+
+<script>
+document.querySelector(".theme-toggle").addEventListener("click", function () {
+  var root = document.documentElement
+  var explicit = root.getAttribute("data-theme")
+  var isDark = explicit ? explicit === "dark"
+                        : matchMedia("(prefers-color-scheme: dark)").matches
+  var next = isDark ? "light" : "dark"
+  root.setAttribute("data-theme", next)
+  try { localStorage.setItem("theme", next) } catch (e) {}
+})
+</script>
+
+</body>
+</html>

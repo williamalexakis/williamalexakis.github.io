@@ -1,0 +1,277 @@
+/* williamalexakis.github.io */
+
+:root {
+  --paper: #fcfbf9;
+  --paper-sunk: #f1efeb;
+  --ink: #1f2328;
+
+  --serif: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Syntax colours. Kept low-saturation so a dense C listing reads as texture
+     rather than confetti — this is the only colour anywhere on the site. */
+  --tok-comment: #8b949e;
+  --tok-keyword: #8a4b6d;
+  --tok-type:    #3d6b7d;
+  --tok-string:  #59683f;
+  --tok-number:  #7d6134;
+  --tok-func:    #41598a;
+  --tok-macro:   #7a6a8a;
+  --tok-punct:   #6a727c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --paper: #0d1013;
+    --paper-sunk: #191d23;
+    --ink: #e6edf3;
+
+    --tok-comment: #6e7781;
+    --tok-keyword: #cf9bbc;
+    --tok-type:    #84b8cc;
+    --tok-string:  #a9c48d;
+    --tok-number:  #ceac82;
+    --tok-func:    #93addd;
+    --tok-macro:   #b3a3c4;
+    --tok-punct:   #8b949e;
+  }
+}
+
+:root[data-theme='dark'] {
+  --paper: #0d1013;
+  --paper-sunk: #191d23;
+  --ink: #e6edf3;
+
+  --tok-comment: #6e7781;
+  --tok-keyword: #cf9bbc;
+  --tok-type:    #84b8cc;
+  --tok-string:  #a9c48d;
+  --tok-number:  #ceac82;
+  --tok-func:    #93addd;
+  --tok-macro:   #b3a3c4;
+  --tok-punct:   #8b949e;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Links carry the text colour; only the underline marks them. */
+a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2.5px;
+  text-decoration-thickness: 1px;
+}
+
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+.page {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 5rem;
+}
+
+/* --- Index --------------------------------------------------------------- */
+
+.masthead {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 2.75rem;
+}
+
+.wordmark { font-weight: 600; }
+
+.social {
+  margin-left: auto;
+  display: flex;
+  gap: 1rem;
+}
+
+/* Pinned to the viewport corner so it is reachable from anywhere on the page. */
+.theme-toggle {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  background: none;
+  border: 0;
+  padding: 0.4rem;
+  color: inherit;
+  cursor: pointer;
+  line-height: 0;
+}
+.theme-toggle .icon-moon { display: none; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .theme-toggle .icon-sun { display: none; }
+  :root:not([data-theme='light']) .theme-toggle .icon-moon { display: inline; }
+}
+:root[data-theme='dark'] .theme-toggle .icon-sun { display: none; }
+:root[data-theme='dark'] .theme-toggle .icon-moon { display: inline; }
+
+.section { margin: 0 0 2.5rem; }
+.section:last-child { margin-bottom: 0; }
+
+.section-title {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.entries li { margin: 0 0 0.35rem; }
+
+/* Date sits left of the title and lines the titles up. */
+.date {
+  display: inline-block;
+  min-width: 6rem;
+}
+
+/* --- Writing ------------------------------------------------------------- */
+
+.writing {
+  max-width: 37rem;
+  margin: 0 auto;
+  padding: 3.5rem 1.5rem 6rem;
+}
+
+/* The generic paragraph rule comes first; the rules below it are scoped one
+   level deeper so they outrank it rather than losing to it. */
+.writing p { margin: 0 0 1.3rem; }
+
+.writing .home { margin: 0 0 2.25rem; }
+
+.writing-title {
+  margin: 0;
+  font-size: 1.7rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.writing .writing-date { margin: 0.5rem 0 2.5rem; }
+
+.writing h2 {
+  margin: 2.5rem 0 1rem;
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.writing .source { margin-top: 2.5rem; }
+
+.writing ul, .writing ol { margin: 0 0 1.3rem; padding-left: 1.3rem; }
+.writing li { margin: 0 0 0.4rem; }
+
+.writing :not(pre) > code {
+  font-family: var(--mono);
+  font-size: 0.855em;
+  background: var(--paper-sunk);
+  border-radius: 2px;
+  padding: 0.1em 0.32em;
+  word-break: break-word;
+}
+
+/* --- Code ---------------------------------------------------------------- */
+
+pre {
+  margin: 1.5rem 0;
+  padding: 0.9rem 1.05rem;
+  background: var(--paper-sunk);
+  border-radius: 2px;
+  overflow-x: auto;
+}
+
+pre code {
+  font-family: var(--mono);
+  font-size: 0.79rem;
+  line-height: 1.6;
+  display: block;
+  width: fit-content;
+  min-width: 100%;
+  tab-size: 4;
+}
+
+/* Prism tokens. Blocks without a language class (bytecode dumps, Phase
+   diagnostics, the Phase sample) are left untouched and inherit the body
+   colour, which is what those want. */
+.token.comment,
+.token.prolog { color: var(--tok-comment); font-style: italic; }
+.token.keyword { color: var(--tok-keyword); }
+.token.class-name,
+.token.builtin { color: var(--tok-type); }
+.token.string,
+.token.char { color: var(--tok-string); }
+.token.number,
+.token.boolean,
+.token.constant { color: var(--tok-number); }
+.token.function { color: var(--tok-func); }
+.token.macro,
+.token.directive,
+.token.directive-hash { color: var(--tok-macro); }
+.token.operator,
+.token.punctuation { color: var(--tok-punct); }
+.token.macro .token.keyword { color: var(--tok-macro); }
+
+/* --- Figures ------------------------------------------------------------- */
+
+/* Inline SVG inherits currentColor, so one drawing serves both themes. */
+.figure {
+  margin: 2rem 0;
+  text-align: center;
+}
+
+.figure svg {
+  max-width: 100%;
+  height: auto;
+  color: var(--ink);
+}
+
+/* --- Maths --------------------------------------------------------------- */
+
+/* KaTeX renders the original LaTeX; these rules only handle placement. */
+.math-block {
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.2rem 0;
+}
+
+.katex-display { margin: 0; }
+.katex { font-size: 1.05em; }
+
+/* --- Responsive ---------------------------------------------------------- */
+
+@media (max-width: 34rem) {
+  body { font-size: 16.5px; }
+  .page, .writing { padding-left: 1.15rem; padding-right: 1.15rem; }
+  .page { padding-top: 2.25rem; }
+  .writing { padding-top: 2.5rem; }
+  .masthead { flex-wrap: wrap; gap: 0.5rem 0.9rem; }
+  .social { gap: 0.9rem; }
+  .writing-title { font-size: 1.45rem; }
+  .date { min-width: 5.4rem; }
+  pre code { font-size: 0.75rem; }
+}
+
+@media print {
+  .theme-toggle { display: none; }
+  body { background: #fff; color: #000; }
+}
